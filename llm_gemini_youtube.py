@@ -10,6 +10,10 @@ def register_models(register):
     register(GeminiYouTube("gemini-1.5-pro-yt"))
 
 
+def is_youtube_uri(url: str) -> bool:
+    return "youtube.com/watch?v=" in url or "youtu.be/" in url
+
+
 class GeminiYouTube(llm.KeyModel):
     needs_key = "gemini"
     key_env_var = "LLM_GEMINI_KEY"
@@ -27,10 +31,7 @@ class GeminiYouTube(llm.KeyModel):
 
         youtube_uri = None
         for attachment in prompt.attachments:
-            if attachment.url and (
-                "youtube.com/watch?v=" in attachment.url
-                or "youtu.be/" in attachment.url
-            ):
+            if is_youtube_uri(attachment.url):
                 youtube_uri = attachment.url
                 break
         if not youtube_uri:

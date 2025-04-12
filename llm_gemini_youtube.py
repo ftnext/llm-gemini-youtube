@@ -11,7 +11,11 @@ def register_models(register):
 
 
 def is_youtube_uri(url: str) -> bool:
-    return "youtube.com/watch?v=" in url or "youtu.be/" in url
+    return (
+        "youtube.com/watch?v=" in url
+        or "youtu.be/" in url
+        or "youtube.com/shorts/" in url
+    )
 
 
 class GeminiYouTube(llm.KeyModel):

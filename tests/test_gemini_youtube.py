@@ -1,3 +1,5 @@
+import subprocess
+
 import pytest
 from llm.plugins import pm
 
@@ -24,3 +26,23 @@ class TestIsYouTubeUri:
 
     def test_not_youtube_uri(self):
         assert not is_youtube_uri("https://example.com")
+
+
+class TestSupportedModels:
+    @pytest.mark.parametrize(
+        "expected_model",
+        [
+            "gemini-2.0-flash-yt",
+            "gemini-1.5-pro-yt",
+            "gemini-2.5-pro-exp-03-25-yt",
+        ],
+    )
+    def test_contains_llm_models_output(self, expected_model):
+        result = subprocess.run(
+            ["llm", "models", "-q", "-yt"],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+
+        assert expected_model in result.stdout

@@ -1,13 +1,14 @@
 import subprocess
 
 import pytest
-from llm.plugins import pm
+from llm.plugins import load_plugins, pm
 
 from llm_gemini_youtube import is_youtube_uri
 
 
-@pytest.mark.skip("Need to fix this failing test")
 def test_plugin_is_installed():
+    load_plugins()
+
     names = [mod.__name__ for mod in pm.get_plugins()]
     assert "llm_gemini_youtube" in names
 

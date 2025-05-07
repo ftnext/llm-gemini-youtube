@@ -6,7 +6,7 @@
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](https://github.com/ftnext/llm-gemini-youtube/blob/main/LICENSE)
 
 LLM plugin to access Google's Gemini family of models, with support for YouTube URLs  
-https://ai.google.dev/gemini-api/docs/vision?lang=python#youtube
+https://ai.google.dev/gemini-api/docs/video-understanding#youtube
 
 ## Installation
 

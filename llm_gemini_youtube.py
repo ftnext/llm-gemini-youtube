@@ -32,7 +32,7 @@ class GeminiYouTube(llm.KeyModel):
         if not prompt.attachments:
             raise llm.ModelError("Attachment (YouTube URL) is required.")
 
-        client = Client(api_key=os.getenv("LLM_GEMINI_KEY"))
+        client = Client(api_key=key)
 
         youtube_uri = None
         for attachment in prompt.attachments:

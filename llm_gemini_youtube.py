@@ -1,5 +1,3 @@
-import os
-
 import llm
 from google.genai import Client, types
 
@@ -8,7 +6,8 @@ from google.genai import Client, types
 def register_models(register):
     register(GeminiYouTube("gemini-2.0-flash-yt"))
     register(GeminiYouTube("gemini-1.5-pro-yt"))
-    register(GeminiYouTube("gemini-2.5-pro-exp-03-25-yt"))
+    register(GeminiYouTube("gemini-2.5-pro-yt"))
+    register(GeminiYouTube("gemini-2.5-flash-yt"))
 
 
 def is_youtube_uri(url: str) -> bool:

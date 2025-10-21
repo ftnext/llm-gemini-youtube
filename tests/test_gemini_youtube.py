@@ -35,7 +35,8 @@ class TestSupportedModels:
         [
             "gemini-2.0-flash-yt",
             "gemini-1.5-pro-yt",
-            "gemini-2.5-pro-exp-03-25-yt",
+            "gemini-2.5-pro-yt",
+            "gemini-2.5-flash-yt",
         ],
     )
     def test_contains_llm_models_output(self, expected_model):

@@ -31,6 +31,19 @@ Supported models are `gemini-3.7-flash-yt`, `gemini-3.6-flash-yt`, and `gemini-3
 llm keys set gemini
 ```
 
+### Google Cloud
+
+The Google Gen AI SDK can route requests through Gemini Enterprise Agent Platform using its standard environment variables:
+
+```bash
+export GOOGLE_GENAI_USE_ENTERPRISE=1
+export GOOGLE_CLOUD_PROJECT='your-project-id'
+export GOOGLE_CLOUD_LOCATION='us-central1'
+gcloud auth application-default login
+```
+
+The Gemini key must still be configured for LLM. When the Enterprise variables include a project and location, the SDK selects Google Cloud credentials instead of the API key.
+
 ## Development
 
 To set up this plugin locally, first checkout the code. Then create a new virtual environment:

@@ -1,3 +1,4 @@
+import os
 import subprocess
 import sys
 from types import SimpleNamespace
@@ -64,17 +65,25 @@ class TestExecute:
         )
 
     @patch("llm_gemini_youtube.Client")
-    def test_non_streaming_interaction(self, client_class, prompt):
+    def test_non_streaming_interaction(self, client_class, prompt, monkeypatch):
         client = client_class.return_value
         client.interactions.create.return_value = SimpleNamespace(
             output_text="Three announcements."
         )
+        monkeypatch.setenv("GOOGLE_API_KEY", "original-key")
+
+        def assert_environment_then_create_client():
+            assert os.environ["GOOGLE_API_KEY"] == "test-key"
+            return client
+
+        client_class.side_effect = assert_environment_then_create_client
         model = GeminiYouTube("gemini-3.7-flash-yt")
 
         chunks = list(model.execute(prompt, False, None, None, "test-key"))
 
         assert chunks == ["Three announcements."]
-        client_class.assert_called_once_with(api_key="test-key")
+        assert os.environ["GOOGLE_API_KEY"] == "original-key"
+        client_class.assert_called_once_with()
         client.interactions.create.assert_called_once_with(
             model="gemini-3.7-flash",
             input=[
@@ -87,6 +96,31 @@ class TestExecute:
             ],
             stream=False,
         )
+
+    @patch("llm_gemini_youtube.Client")
+    def test_enterprise_environment_is_available_to_client(
+        self, client_class, prompt, monkeypatch
+    ):
+        client = client_class.return_value
+        client.interactions.create.return_value = SimpleNamespace(output_text="Done")
+        monkeypatch.setenv("GOOGLE_GENAI_USE_ENTERPRISE", "1")
+        monkeypatch.setenv("GOOGLE_CLOUD_PROJECT", "test-project")
+        monkeypatch.setenv("GOOGLE_CLOUD_LOCATION", "us-central1")
+
+        def assert_environment_then_create_client():
+            assert os.environ["GOOGLE_API_KEY"] == "test-key"
+            assert os.environ["GOOGLE_GENAI_USE_ENTERPRISE"] == "1"
+            assert os.environ["GOOGLE_CLOUD_PROJECT"] == "test-project"
+            assert os.environ["GOOGLE_CLOUD_LOCATION"] == "us-central1"
+            return client
+
+        client_class.side_effect = assert_environment_then_create_client
+        model = GeminiYouTube("gemini-3.7-flash-yt")
+
+        chunks = list(model.execute(prompt, False, None, None, "test-key"))
+
+        assert chunks == ["Done"]
+        client_class.assert_called_once_with()
 
     @patch("llm_gemini_youtube.Client")
     def test_streaming_interaction_yields_only_text_deltas(

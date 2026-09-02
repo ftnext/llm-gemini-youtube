@@ -1,3 +1,6 @@
+import os
+from unittest.mock import patch
+
 import llm
 from google.genai import Client
 
@@ -36,7 +39,11 @@ class GeminiYouTube(llm.KeyModel):
         if not prompt.attachments:
             raise llm.ModelError("Attachment (YouTube URL) is required.")
 
-        client = Client(api_key=key)
+        # Let google-genai select the Gemini Developer API or Gemini Enterprise
+        # Agent Platform from its standard environment variables. The LLM key
+        # is exposed only while Client reads its configuration.
+        with patch.dict(os.environ, {"GOOGLE_API_KEY": key}):
+            client = Client()
 
         youtube_uri = None
         for attachment in prompt.attachments:

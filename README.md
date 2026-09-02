@@ -9,6 +9,11 @@ LLM plugin for [agentic YouTube video understanding with Gemini](https://blog.go
 
 The plugin uses the Gemini Interactions API and enables agentic processing for every video. Gemini can selectively inspect the frames, audio, and transcript needed to answer the prompt instead of processing the whole video at a fixed frame rate.
 
+## Project history
+
+- The 0.0.x series provided server-side YouTube URL processing. That capability was later adopted upstream by `simonw/llm-gemini` in [PR #112: Add support for media_resolution and processing Youtube URLs server-side](https://github.com/simonw/llm-gemini/pull/112).
+- Starting with the 0.1.x series, this project was rebooted to focus exclusively on Google's [agentic video understanding with Gemini](https://blog.google/innovation-and-ai/models-and-research/gemini-models/introducing-agentic-video-in-gemini/).
+
 ## Installation
 
 Install this plugin in the same environment as [LLM](https://llm.datasette.io/).

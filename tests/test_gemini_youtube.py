@@ -1,9 +1,13 @@
 import subprocess
+import sys
+from types import SimpleNamespace
+from unittest.mock import patch
 
+import llm
 import pytest
 from llm.plugins import load_plugins, pm
 
-from llm_gemini_youtube import is_youtube_uri
+from llm_gemini_youtube import GeminiYouTube, is_youtube_uri
 
 
 def test_plugin_is_installed():
@@ -33,18 +37,90 @@ class TestSupportedModels:
     @pytest.mark.parametrize(
         "expected_model",
         [
-            "gemini-2.0-flash-yt",
-            "gemini-1.5-pro-yt",
-            "gemini-2.5-pro-yt",
-            "gemini-2.5-flash-yt",
+            "gemini-3.7-flash-yt",
+            "gemini-3.6-flash-yt",
+            "gemini-3.5-flash-lite-yt",
         ],
     )
     def test_contains_llm_models_output(self, expected_model):
         result = subprocess.run(
-            ["llm", "models", "-q", "-yt"],
+            [sys.executable, "-m", "llm", "models", "-q", "-yt"],
             check=True,
             capture_output=True,
             text=True,
         )
 
         assert expected_model in result.stdout
+
+
+class TestExecute:
+    @pytest.fixture
+    def prompt(self):
+        return SimpleNamespace(
+            prompt="What happens in this video?",
+            attachments=[
+                llm.Attachment(url="https://youtu.be/7Z5Vy9JBANs"),
+            ],
+        )
+
+    @patch("llm_gemini_youtube.Client")
+    def test_non_streaming_interaction(self, client_class, prompt):
+        client = client_class.return_value
+        client.interactions.create.return_value = SimpleNamespace(
+            output_text="Three announcements."
+        )
+        model = GeminiYouTube("gemini-3.7-flash-yt")
+
+        chunks = list(model.execute(prompt, False, None, None, "test-key"))
+
+        assert chunks == ["Three announcements."]
+        client_class.assert_called_once_with(api_key="test-key")
+        client.interactions.create.assert_called_once_with(
+            model="gemini-3.7-flash",
+            input=[
+                {
+                    "type": "video",
+                    "uri": "https://youtu.be/7Z5Vy9JBANs",
+                    "processing": "agentic",
+                },
+                {"type": "text", "text": "What happens in this video?"},
+            ],
+            stream=False,
+        )
+
+    @patch("llm_gemini_youtube.Client")
+    def test_streaming_interaction_yields_only_text_deltas(
+        self, client_class, prompt
+    ):
+        text_delta = SimpleNamespace(
+            event_type="step.delta",
+            delta=SimpleNamespace(type="text", text="Hello"),
+        )
+        tool_delta = SimpleNamespace(
+            event_type="step.delta",
+            delta=SimpleNamespace(type="video"),
+        )
+        completed = SimpleNamespace(event_type="interaction.completed")
+        client_class.return_value.interactions.create.return_value = iter(
+            [text_delta, tool_delta, completed]
+        )
+        model = GeminiYouTube("gemini-3.7-flash-yt")
+
+        chunks = list(model.execute(prompt, True, None, None, "test-key"))
+
+        assert chunks == ["Hello"]
+
+    @pytest.mark.parametrize(
+        "attachments",
+        [
+            [],
+            [llm.Attachment(url="https://example.com")],
+            [SimpleNamespace(url=None)],
+        ],
+    )
+    def test_youtube_attachment_is_required(self, attachments):
+        model = GeminiYouTube("gemini-3.7-flash-yt")
+        prompt = SimpleNamespace(prompt="Summarize", attachments=attachments)
+
+        with pytest.raises(llm.ModelError):
+            list(model.execute(prompt, False, None, None, "test-key"))

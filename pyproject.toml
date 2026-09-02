@@ -1,12 +1,12 @@
 [project]
 name = "llm-gemini-youtube"
-version = "0.0.3"
-description = "LLM plugin to access Google's Gemini family of models, with support for YouTube URLs"
+version = "0.1.0"
+description = "LLM plugin for agentic YouTube video understanding with Gemini"
 readme = "README.md"
 authors = [{ name = "nikkie", email = "takuyafjp+develop@gmail.com" }]
 license = "Apache-2.0"
 classifiers = [
-    "Development Status :: 1 - Planning",
+    "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",
     "Intended Audience :: End Users/Desktop",
     "Intended Audience :: Science/Research",
@@ -22,7 +22,7 @@ classifiers = [
 ]
 requires-python = ">=3.10"
 dependencies = [
-    "llm", "google-genai"
+    "llm", "google-genai>=2.20.0"
 ]
 
 [build-system]

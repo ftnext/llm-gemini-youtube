@@ -1,13 +1,18 @@
 import llm
-from google.genai import Client, types
+from google.genai import Client
+
+
+SUPPORTED_MODELS = (
+    "gemini-3.7-flash",
+    "gemini-3.6-flash",
+    "gemini-3.5-flash-lite",
+)
 
 
 @llm.hookimpl
 def register_models(register):
-    register(GeminiYouTube("gemini-2.0-flash-yt"))
-    register(GeminiYouTube("gemini-1.5-pro-yt"))
-    register(GeminiYouTube("gemini-2.5-pro-yt"))
-    register(GeminiYouTube("gemini-2.5-flash-yt"))
+    for model_id in SUPPORTED_MODELS:
+        register(GeminiYouTube(f"{model_id}-yt"))
 
 
 def is_youtube_uri(url: str) -> bool:
@@ -35,20 +40,29 @@ class GeminiYouTube(llm.KeyModel):
 
         youtube_uri = None
         for attachment in prompt.attachments:
-            if is_youtube_uri(attachment.url):
+            if attachment.url and is_youtube_uri(attachment.url):
                 youtube_uri = attachment.url
                 break
         if not youtube_uri:
             raise llm.ModelError("YouTube URL attachment is required.")
 
-        streaming = client.models.generate_content_stream(
-            model=f"models/{self.model_id.removesuffix('-yt')}",
-            contents=types.Content(
-                parts=[
-                    types.Part(text=prompt.prompt),
-                    types.Part(file_data=types.FileData(file_uri=youtube_uri)),
-                ]
-            ),
+        interaction = client.interactions.create(
+            model=self.model_id.removesuffix("-yt"),
+            input=[
+                {
+                    "type": "video",
+                    "uri": youtube_uri,
+                    "processing": "agentic",
+                },
+                {"type": "text", "text": prompt.prompt},
+            ],
+            stream=stream,
         )
-        for chunk in streaming:
-            yield chunk.text
+
+        if not stream:
+            yield interaction.output_text or ""
+            return
+
+        for event in interaction:
+            if event.event_type == "step.delta" and event.delta.type == "text":
+                yield event.delta.text

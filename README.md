@@ -5,8 +5,9 @@
 [![Tests](https://github.com/ftnext/llm-gemini-youtube/actions/workflows/test.yml/badge.svg)](https://github.com/ftnext/llm-gemini-youtube/actions/workflows/test.yml)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](https://github.com/ftnext/llm-gemini-youtube/blob/main/LICENSE)
 
-LLM plugin to access Google's Gemini family of models, with support for YouTube URLs  
-https://ai.google.dev/gemini-api/docs/video-understanding#youtube
+LLM plugin for [agentic YouTube video understanding with Gemini](https://blog.google/innovation-and-ai/models-and-research/gemini-models/introducing-agentic-video-in-gemini/).
+
+The plugin uses the Gemini Interactions API and enables agentic processing for every video. Gemini can selectively inspect the frames, audio, and transcript needed to answer the prompt instead of processing the whole video at a fixed frame rate.
 
 ## Installation
 
@@ -17,11 +18,17 @@ llm install llm-gemini-youtube
 ## Usage
 
 ```bash
-llm -m gemini-2.0-flash-yt -a 'https://www.youtube.com/watch?v=9hE5-98ZeCg' 'Can you summarize this video?'
+llm -m gemini-3.7-flash-yt -a 'https://www.youtube.com/watch?v=9hE5-98ZeCg' 'Can you summarize this video?'
 
-llm -m gemini-1.5-pro-yt -a 'https://www.youtube.com/watch?v=9hE5-98ZeCg' 'What are the examples given at 01:05 and 01:19 supposed to show us?'
+llm -m gemini-3.6-flash-yt -a 'https://www.youtube.com/watch?v=9hE5-98ZeCg' 'What are the examples given at 01:05 and 01:19 supposed to show us?'
 
-llm -m gemini-1.5-pro-yt -a 'https://www.youtube.com/watch?v=9hE5-98ZeCg' 'Transcribe the audio from this video, giving timestamps for salient events in the video. Also provide visual descriptions.'
+llm -m gemini-3.5-flash-lite-yt -a 'https://www.youtube.com/watch?v=9hE5-98ZeCg' 'Transcribe the audio from this video, giving timestamps for salient events in the video. Also provide visual descriptions.'
+```
+
+Supported models are `gemini-3.7-flash-yt`, `gemini-3.6-flash-yt`, and `gemini-3.5-flash-lite-yt`. Configure the API key using LLM's standard key mechanism:
+
+```bash
+llm keys set gemini
 ```
 
 ## Development

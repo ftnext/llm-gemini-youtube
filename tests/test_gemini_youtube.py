@@ -38,6 +38,7 @@ class TestSupportedModels:
     @pytest.mark.parametrize(
         "expected_model",
         [
+            "gemini-3.8-flash-yt",
             "gemini-3.7-flash-yt",
             "gemini-3.6-flash-yt",
             "gemini-3.5-flash-lite-yt",

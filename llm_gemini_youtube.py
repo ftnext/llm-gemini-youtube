@@ -6,6 +6,7 @@ from google.genai import Client, types
 
 
 SUPPORTED_MODELS = (
+    "gemini-3.8-flash",
     "gemini-3.7-flash",
     "gemini-3.6-flash",
     "gemini-3.5-flash-lite",

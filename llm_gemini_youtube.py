@@ -1,8 +1,14 @@
+import logging
 import os
 from unittest.mock import patch
 
 import llm
 from google.genai import Client, types
+
+
+# Suppress an upstream AFC warning emitted even when no tools are configured.
+# https://github.com/googleapis/python-genai/issues/2902
+logging.getLogger("google_genai.models").setLevel(logging.ERROR)
 
 
 SUPPORTED_MODELS = (

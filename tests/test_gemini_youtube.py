@@ -1,3 +1,4 @@
+import logging
 import os
 import subprocess
 import sys
@@ -9,6 +10,10 @@ import pytest
 from llm.plugins import load_plugins, pm
 
 from llm_gemini_youtube import GeminiYouTube, is_google_cloud_enabled, is_youtube_uri
+
+
+def test_google_genai_models_warnings_are_suppressed():
+    assert logging.getLogger("google_genai.models").level == logging.ERROR
 
 
 def test_plugin_is_installed():

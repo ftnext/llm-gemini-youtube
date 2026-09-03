@@ -104,6 +104,11 @@ class TestGoogleCloudConfiguration:
 
 
 class TestExecute:
+    @pytest.fixture(autouse=True)
+    def clear_google_cloud_environment(self, monkeypatch):
+        monkeypatch.delenv("GOOGLE_GENAI_USE_ENTERPRISE", raising=False)
+        monkeypatch.delenv("GOOGLE_GENAI_USE_VERTEXAI", raising=False)
+
     @pytest.fixture
     def prompt(self):
         return SimpleNamespace(
@@ -147,21 +152,21 @@ class TestExecute:
         )
 
     @patch("llm_gemini_youtube.Client")
-    def test_enterprise_environment_is_available_to_client(
+    def test_enterprise_uses_generate_content(
         self, client_class, prompt, monkeypatch
     ):
         client = client_class.return_value
-        client.interactions.create.return_value = SimpleNamespace(output_text="Done")
+        client.models.generate_content.return_value = SimpleNamespace(text="Done")
         monkeypatch.setenv("GOOGLE_GENAI_USE_ENTERPRISE", "1")
         monkeypatch.setenv("GOOGLE_CLOUD_PROJECT", "test-project")
-        monkeypatch.setenv("GOOGLE_CLOUD_LOCATION", "us-central1")
+        monkeypatch.setenv("GOOGLE_CLOUD_LOCATION", "global")
         monkeypatch.delenv("GOOGLE_API_KEY", raising=False)
 
         def assert_environment_then_create_client():
             assert "GOOGLE_API_KEY" not in os.environ
             assert os.environ["GOOGLE_GENAI_USE_ENTERPRISE"] == "1"
             assert os.environ["GOOGLE_CLOUD_PROJECT"] == "test-project"
-            assert os.environ["GOOGLE_CLOUD_LOCATION"] == "us-central1"
+            assert os.environ["GOOGLE_CLOUD_LOCATION"] == "global"
             return client
 
         client_class.side_effect = assert_environment_then_create_client
@@ -171,6 +176,36 @@ class TestExecute:
 
         assert chunks == ["Done"]
         client_class.assert_called_once_with()
+        client.models.generate_content.assert_called_once()
+        client.interactions.create.assert_not_called()
+
+        call = client.models.generate_content.call_args
+        assert call.kwargs["model"] == "gemini-3.7-flash"
+        video_part, text = call.kwargs["contents"]
+        assert video_part.file_data.file_uri == "https://youtu.be/7Z5Vy9JBANs"
+        assert video_part.file_data.mime_type == "video/mp4"
+        assert video_part.media_processing == "AGENTIC"
+        assert text == "What happens in this video?"
+
+    @patch("llm_gemini_youtube.Client")
+    def test_streaming_enterprise_uses_generate_content_stream(
+        self, client_class, prompt, monkeypatch
+    ):
+        monkeypatch.setenv("GOOGLE_GENAI_USE_ENTERPRISE", "true")
+        client_class.return_value.models.generate_content_stream.return_value = iter(
+            [
+                SimpleNamespace(text="Hello"),
+                SimpleNamespace(text=None),
+                SimpleNamespace(text=" world"),
+            ]
+        )
+        model = GeminiYouTube("gemini-3.7-flash-yt")
+
+        chunks = list(model.execute(prompt, True, None, None, None))
+
+        assert chunks == ["Hello", " world"]
+        client_class.return_value.models.generate_content_stream.assert_called_once()
+        client_class.return_value.interactions.create.assert_not_called()
 
     @patch("llm_gemini_youtube.Client")
     def test_streaming_interaction_yields_only_text_deltas(

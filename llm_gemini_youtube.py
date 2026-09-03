@@ -2,7 +2,7 @@ import os
 from unittest.mock import patch
 
 import llm
-from google.genai import Client
+from google.genai import Client, types
 
 
 SUPPORTED_MODELS = (
@@ -53,6 +53,14 @@ class GeminiYouTube(llm.KeyModel):
         if not prompt.attachments:
             raise llm.ModelError("Attachment (YouTube URL) is required.")
 
+        youtube_uri = None
+        for attachment in prompt.attachments:
+            if attachment.url and is_youtube_uri(attachment.url):
+                youtube_uri = attachment.url
+                break
+        if not youtube_uri:
+            raise llm.ModelError("YouTube URL attachment is required.")
+
         # Let google-genai select the Gemini Developer API or Gemini Enterprise
         # Agent Platform from its standard environment variables. The LLM key
         # is exposed only while Client reads its configuration.
@@ -62,16 +70,35 @@ class GeminiYouTube(llm.KeyModel):
         else:
             client = Client()
 
-        youtube_uri = None
-        for attachment in prompt.attachments:
-            if attachment.url and is_youtube_uri(attachment.url):
-                youtube_uri = attachment.url
-                break
-        if not youtube_uri:
-            raise llm.ModelError("YouTube URL attachment is required.")
+        model_id = self.model_id.removesuffix("-yt")
+        if is_google_cloud_enabled():
+            video_part = types.Part(
+                file_data=types.FileData(
+                    file_uri=youtube_uri,
+                    mime_type="video/mp4",
+                ),
+                media_processing="AGENTIC",
+            )
+            contents = [video_part, prompt.prompt]
+
+            if not stream:
+                result = client.models.generate_content(
+                    model=model_id,
+                    contents=contents,
+                )
+                yield result.text or ""
+                return
+
+            for chunk in client.models.generate_content_stream(
+                model=model_id,
+                contents=contents,
+            ):
+                if chunk.text:
+                    yield chunk.text
+            return
 
         interaction = client.interactions.create(
-            model=self.model_id.removesuffix("-yt"),
+            model=model_id,
             input=[
                 {
                     "type": "video",

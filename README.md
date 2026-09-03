@@ -7,7 +7,7 @@
 
 LLM plugin for [agentic YouTube video understanding with Gemini](https://blog.google/innovation-and-ai/models-and-research/gemini-models/introducing-agentic-video-in-gemini/).
 
-The plugin uses the Gemini Interactions API and enables agentic processing for every video. Gemini can selectively inspect the frames, audio, and transcript needed to answer the prompt instead of processing the whole video at a fixed frame rate.
+The plugin enables agentic processing for every video. It uses the Gemini Interactions API with an API key and the GenerateContent API with Gemini Enterprise Agent Platform. Gemini can selectively inspect the frames, audio, and transcript needed to answer the prompt instead of processing the whole video at a fixed frame rate.
 
 ## Project history
 
@@ -43,11 +43,11 @@ The Google Gen AI SDK can route requests through Gemini Enterprise Agent Platfor
 ```bash
 export GOOGLE_GENAI_USE_ENTERPRISE=1
 export GOOGLE_CLOUD_PROJECT='your-project-id'
-export GOOGLE_CLOUD_LOCATION='us-central1'
+export GOOGLE_CLOUD_LOCATION='global'
 gcloud auth application-default login
 ```
 
-When Google Cloud is enabled, `LLM_GEMINI_KEY` does not need to be set. The SDK uses Application Default Credentials together with the configured project and location.
+When Google Cloud is enabled, `LLM_GEMINI_KEY` does not need to be set. The SDK uses Application Default Credentials together with the configured project and location. The plugin uses the GenerateContent API with `media_processing="AGENTIC"` for this configuration; API-key requests continue to use the Interactions API with `processing="agentic"`.
 
 ## Development
 

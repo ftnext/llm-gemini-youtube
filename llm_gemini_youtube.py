@@ -26,6 +26,15 @@ def is_youtube_uri(url: str) -> bool:
     )
 
 
+def is_google_cloud_enabled() -> bool:
+    enterprise = os.environ.get("GOOGLE_GENAI_USE_ENTERPRISE")
+    if enterprise is not None:
+        return enterprise.lower() in {"true", "1"}
+
+    vertexai = os.environ.get("GOOGLE_GENAI_USE_VERTEXAI")
+    return vertexai is not None and vertexai.lower() in {"true", "1"}
+
+
 class GeminiYouTube(llm.KeyModel):
     needs_key = "gemini"
     key_env_var = "LLM_GEMINI_KEY"
@@ -35,6 +44,11 @@ class GeminiYouTube(llm.KeyModel):
     def __init__(self, model_id: str):
         self.model_id = model_id
 
+    def get_key(self, explicit_key=None):
+        if is_google_cloud_enabled():
+            return None
+        return super().get_key(explicit_key)
+
     def execute(self, prompt, stream, response, conversation, key):
         if not prompt.attachments:
             raise llm.ModelError("Attachment (YouTube URL) is required.")
@@ -42,7 +56,10 @@ class GeminiYouTube(llm.KeyModel):
         # Let google-genai select the Gemini Developer API or Gemini Enterprise
         # Agent Platform from its standard environment variables. The LLM key
         # is exposed only while Client reads its configuration.
-        with patch.dict(os.environ, {"GOOGLE_API_KEY": key}):
+        if key:
+            with patch.dict(os.environ, {"GOOGLE_API_KEY": key}):
+                client = Client()
+        else:
             client = Client()
 
         youtube_uri = None

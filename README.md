@@ -47,7 +47,7 @@ export GOOGLE_CLOUD_LOCATION='us-central1'
 gcloud auth application-default login
 ```
 
-The Gemini key must still be configured for LLM. When the Enterprise variables include a project and location, the SDK selects Google Cloud credentials instead of the API key.
+When Google Cloud is enabled, `LLM_GEMINI_KEY` does not need to be set. The SDK uses Application Default Credentials together with the configured project and location.
 
 ## Development
 

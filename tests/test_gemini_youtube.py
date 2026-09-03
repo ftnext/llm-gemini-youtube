@@ -8,7 +8,7 @@ import llm
 import pytest
 from llm.plugins import load_plugins, pm
 
-from llm_gemini_youtube import GeminiYouTube, is_youtube_uri
+from llm_gemini_youtube import GeminiYouTube, is_google_cloud_enabled, is_youtube_uri
 
 
 def test_plugin_is_installed():
@@ -52,6 +52,55 @@ class TestSupportedModels:
         )
 
         assert expected_model in result.stdout
+
+
+class TestGoogleCloudConfiguration:
+    @pytest.mark.parametrize(
+        ("environment_variable", "value"),
+        [
+            ("GOOGLE_GENAI_USE_ENTERPRISE", "1"),
+            ("GOOGLE_GENAI_USE_ENTERPRISE", "true"),
+            ("GOOGLE_GENAI_USE_VERTEXAI", "1"),
+            ("GOOGLE_GENAI_USE_VERTEXAI", "true"),
+        ],
+    )
+    def test_google_cloud_is_enabled(
+        self, environment_variable, value, monkeypatch
+    ):
+        monkeypatch.delenv("GOOGLE_GENAI_USE_ENTERPRISE", raising=False)
+        monkeypatch.delenv("GOOGLE_GENAI_USE_VERTEXAI", raising=False)
+        monkeypatch.setenv(environment_variable, value)
+
+        assert is_google_cloud_enabled()
+
+    def test_enterprise_setting_takes_precedence_over_vertexai(self, monkeypatch):
+        monkeypatch.setenv("GOOGLE_GENAI_USE_ENTERPRISE", "false")
+        monkeypatch.setenv("GOOGLE_GENAI_USE_VERTEXAI", "true")
+
+        assert not is_google_cloud_enabled()
+
+    def test_google_cloud_does_not_require_llm_key(self, monkeypatch):
+        monkeypatch.setenv("GOOGLE_GENAI_USE_ENTERPRISE", "1")
+        model = GeminiYouTube("gemini-3.7-flash-yt")
+
+        with patch("llm.get_key") as get_key:
+            assert model.get_key() is None
+
+        get_key.assert_not_called()
+
+    def test_developer_api_still_uses_llm_key_lookup(self, monkeypatch):
+        monkeypatch.delenv("GOOGLE_GENAI_USE_ENTERPRISE", raising=False)
+        monkeypatch.delenv("GOOGLE_GENAI_USE_VERTEXAI", raising=False)
+        model = GeminiYouTube("gemini-3.7-flash-yt")
+
+        with patch("llm.get_key", return_value="test-key") as get_key:
+            assert model.get_key() == "test-key"
+
+        get_key.assert_called_once_with(
+            explicit_key=None,
+            key_alias="gemini",
+            env_var="LLM_GEMINI_KEY",
+        )
 
 
 class TestExecute:
@@ -106,9 +155,10 @@ class TestExecute:
         monkeypatch.setenv("GOOGLE_GENAI_USE_ENTERPRISE", "1")
         monkeypatch.setenv("GOOGLE_CLOUD_PROJECT", "test-project")
         monkeypatch.setenv("GOOGLE_CLOUD_LOCATION", "us-central1")
+        monkeypatch.delenv("GOOGLE_API_KEY", raising=False)
 
         def assert_environment_then_create_client():
-            assert os.environ["GOOGLE_API_KEY"] == "test-key"
+            assert "GOOGLE_API_KEY" not in os.environ
             assert os.environ["GOOGLE_GENAI_USE_ENTERPRISE"] == "1"
             assert os.environ["GOOGLE_CLOUD_PROJECT"] == "test-project"
             assert os.environ["GOOGLE_CLOUD_LOCATION"] == "us-central1"
@@ -117,7 +167,7 @@ class TestExecute:
         client_class.side_effect = assert_environment_then_create_client
         model = GeminiYouTube("gemini-3.7-flash-yt")
 
-        chunks = list(model.execute(prompt, False, None, None, "test-key"))
+        chunks = list(model.execute(prompt, False, None, None, None))
 
         assert chunks == ["Done"]
         client_class.assert_called_once_with()

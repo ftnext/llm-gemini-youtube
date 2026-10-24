@@ -51,6 +51,37 @@ gcloud auth application-default login
 
 When Google Cloud is enabled, `LLM_GEMINI_KEY` does not need to be set. The SDK uses Application Default Credentials together with the configured project and location. The plugin uses the GenerateContent API with `media_processing="AGENTIC"` for this configuration; API-key requests continue to use the Interactions API with `processing="agentic"`.
 
+### Batch submission
+
+Each supported model also has a `-yt-batch` variant that submits a [batch prediction job](https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/capabilities/batch-inference) to Google Cloud instead of running inference immediately. Batch submission always uses agentic video understanding and can reduce cost compared to online requests.
+
+The `-yt-batch` models require Google Cloud configuration (`GOOGLE_GENAI_USE_ENTERPRISE` or `GOOGLE_GENAI_USE_VERTEXAI`, with `GOOGLE_CLOUD_PROJECT` and `GOOGLE_CLOUD_LOCATION`); they do not fall back to the Gemini API key. Prepare a Cloud Storage bucket with write permission for your account (including `storage.objects.delete` so an existing input object can be overwritten) and read/write permission for the service.
+
+```bash
+llm -m gemini-3.8-flash-yt-batch \
+  -o batch_input_uri 'gs://my-bucket/youtube-batch/input.jsonl' \
+  -a 'https://www.youtube.com/watch?v=VIDEO1' \
+  -a 'https://www.youtube.com/watch?v=VIDEO2' \
+  -a 'https://www.youtube.com/watch?v=VIDEO3' \
+  'Summarize'
+```
+
+Every `-a` value must be a YouTube URL. The plugin generates one request per URL — this example sends three requests, each combining a video with the shared prompt, as a single job — writes them to a JSONL file, uploads it to `batch_input_uri` (overwriting an existing object), and creates the batch job. The output location is configured automatically by the SDK from the input URI.
+
+On success the command prints the full job resource name and exits without waiting for the job:
+
+```text
+projects/123456789/locations/global/batchPredictionJobs/987654321
+```
+
+Use the SDK to check status or fetch results, for example `client.batches.get(name="projects/...")`.
+
+Notes:
+
+- Each repeated URL produces its own request; duplicates are not deduplicated.
+- System prompts (`-s`) and continuing a conversation (`-c` / `--cid`) are not supported and raise an error.
+- Reusing a `batch_input_uri` overwrites the object; avoid reusing a URI while a job that reads it is still running.
+
 ## Development
 
 To set up this plugin locally, first checkout the code. Then create a new virtual environment:

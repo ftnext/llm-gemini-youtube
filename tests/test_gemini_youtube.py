@@ -43,6 +43,9 @@ class TestSupportedModels:
     @pytest.mark.parametrize(
         "expected_model",
         [
+            "gemini-4-carbon-yt",
+            "gemini-4-argon-yt",
+            "gemini-4-hydrogen-yt",
             "gemini-3.8-flash-yt",
             "gemini-3.7-flash-yt",
             "gemini-3.6-flash-yt",

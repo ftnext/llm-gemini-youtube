@@ -23,6 +23,12 @@ llm install llm-gemini-youtube
 ## Usage
 
 ```bash
+llm -m gemini-4-carbon-yt -a 'https://www.youtube.com/watch?v=9hE5-98ZeCg' 'Can you summarize this video?'
+
+llm -m gemini-4-argon-yt -a 'https://www.youtube.com/watch?v=9hE5-98ZeCg' 'Can you summarize this video?'
+
+llm -m gemini-4-hydrogen-yt -a 'https://www.youtube.com/watch?v=9hE5-98ZeCg' 'Can you summarize this video?'
+
 llm -m gemini-3.8-flash-yt -a 'https://www.youtube.com/watch?v=9hE5-98ZeCg' 'Can you summarize this video?'
 
 llm -m gemini-3.7-flash-yt -a 'https://www.youtube.com/watch?v=9hE5-98ZeCg' 'Can you summarize this video?'
@@ -32,7 +38,7 @@ llm -m gemini-3.6-flash-yt -a 'https://www.youtube.com/watch?v=9hE5-98ZeCg' 'Wha
 llm -m gemini-3.5-flash-lite-yt -a 'https://www.youtube.com/watch?v=9hE5-98ZeCg' 'Transcribe the audio from this video, giving timestamps for salient events in the video. Also provide visual descriptions.'
 ```
 
-Supported models are `gemini-3.8-flash-yt`, `gemini-3.7-flash-yt`, `gemini-3.6-flash-yt`, and `gemini-3.5-flash-lite-yt`. Configure the API key using LLM's standard key mechanism:
+Supported models are `gemini-4-carbon-yt`, `gemini-4-argon-yt`, `gemini-4-hydrogen-yt`, `gemini-3.8-flash-yt`, `gemini-3.7-flash-yt`, `gemini-3.6-flash-yt`, and `gemini-3.5-flash-lite-yt`. Configure the API key using LLM's standard key mechanism:
 
 ```bash
 llm keys set gemini

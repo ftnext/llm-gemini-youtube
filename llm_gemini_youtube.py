@@ -12,6 +12,9 @@ logging.getLogger("google_genai.models").setLevel(logging.ERROR)
 
 
 SUPPORTED_MODELS = (
+    "gemini-4-carbon",
+    "gemini-4-argon",
+    "gemini-4-hydrogen",
     "gemini-3.8-flash",
     "gemini-3.7-flash",
     "gemini-3.6-flash",

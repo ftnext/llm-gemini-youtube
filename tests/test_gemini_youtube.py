@@ -44,6 +44,7 @@ class TestSupportedModels:
         "expected_model",
         [
             "gemini-4-carbon-yt",
+            "gemini-4-neon-yt",
             "gemini-4-argon-yt",
             "gemini-4-hydrogen-yt",
             "gemini-3.8-flash-yt",

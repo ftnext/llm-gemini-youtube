@@ -23,28 +23,25 @@ llm install llm-gemini-youtube
 ## Usage
 
 ```bash
-llm -m gemini-4-carbon-yt -a 'https://www.youtube.com/watch?v=9hE5-98ZeCg' 'Can you summarize this video?'
-
-llm -m gemini-4-neon-yt -a 'https://www.youtube.com/watch?v=9hE5-98ZeCg' 'Can you summarize this video?'
-
-llm -m gemini-4-argon-yt -a 'https://www.youtube.com/watch?v=9hE5-98ZeCg' 'Can you summarize this video?'
-
 llm -m gemini-4-hydrogen-yt -a 'https://www.youtube.com/watch?v=9hE5-98ZeCg' 'Can you summarize this video?'
 
-llm -m gemini-3.8-flash-yt -a 'https://www.youtube.com/watch?v=9hE5-98ZeCg' 'Can you summarize this video?'
-
-llm -m gemini-3.7-flash-yt -a 'https://www.youtube.com/watch?v=9hE5-98ZeCg' 'Can you summarize this video?'
-
-llm -m gemini-3.6-flash-yt -a 'https://www.youtube.com/watch?v=9hE5-98ZeCg' 'What are the examples given at 01:05 and 01:19 supposed to show us?'
+llm -m gemini-3.8-flash-yt -a 'https://www.youtube.com/watch?v=9hE5-98ZeCg' 'What are the examples given at 01:05 and 01:19 supposed to show us?'
 
 llm -m gemini-3.5-flash-lite-yt -a 'https://www.youtube.com/watch?v=9hE5-98ZeCg' 'Transcribe the audio from this video, giving timestamps for salient events in the video. Also provide visual descriptions.'
 ```
 
-Supported models are `gemini-4-carbon-yt`, `gemini-4-neon-yt`, `gemini-4-argon-yt`, `gemini-4-hydrogen-yt`, `gemini-3.8-flash-yt`, `gemini-3.7-flash-yt`, `gemini-3.6-flash-yt`, and `gemini-3.5-flash-lite-yt`. Configure the API key using LLM's standard key mechanism:
+Supported models:
 
-```bash
-llm keys set gemini
-```
+| Model | Google Cloud (Gemini Enterprise Agent Platform) | DeepMind Gemini API (Google AI Studio) |
+| --- | --- | --- |
+| `gemini-4-carbon-yt` | [`gemini-4-carbon`](https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/gemini/4-carbon) | [`gemini-4-carbon`](https://aistudio.google.com/docs/models/gemini-4-carbon) |
+| `gemini-4-neon-yt` | [`gemini-4-neon`](https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/gemini/4-neon) | [`gemini-4-neon`](https://aistudio.google.com/docs/models/gemini-4-neon) |
+| `gemini-4-argon-yt` | [`gemini-4-argon`](https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/gemini/4-argon) | [`gemini-4-argon`](https://aistudio.google.com/docs/models/gemini-4-argon) |
+| `gemini-4-hydrogen-yt` | [`gemini-4-hydrogen`](https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/gemini/4-hydrogen) | [`gemini-4-hydrogen`](https://aistudio.google.com/docs/models/gemini-4-hydrogen) |
+| `gemini-3.8-flash-yt` | [`gemini-3.8-flash`](https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/gemini/3-8-flash) | [`gemini-3.8-flash`](https://aistudio.google.com/docs/models/gemini-3.8-flash) |
+| `gemini-3.7-flash-yt` | [`gemini-3.7-flash`](https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/gemini/3-7-flash) | [`gemini-3.7-flash`](https://aistudio.google.com/docs/models/gemini-3.7-flash) |
+| `gemini-3.6-flash-yt` | [`gemini-3.6-flash`](https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/gemini/3-6-flash) | [`gemini-3.6-flash`](https://aistudio.google.com/docs/models/gemini-3.6-flash) |
+| `gemini-3.5-flash-lite-yt` | [`gemini-3.5-flash-lite`](https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/gemini/3-5-flash-lite) | [`gemini-3.5-flash-lite`](https://aistudio.google.com/docs/models/gemini-3.5-flash-lite) |
 
 ### Google Cloud
 
@@ -58,6 +55,20 @@ gcloud auth application-default login
 ```
 
 When Google Cloud is enabled, `LLM_GEMINI_KEY` does not need to be set. The SDK uses Application Default Credentials together with the configured project and location. The plugin uses the GenerateContent API with `media_processing="AGENTIC"` for this configuration; API-key requests continue to use the Interactions API with `processing="agentic"`.
+
+- [Video understanding](https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/capabilities/video-understanding)
+- [Pricing (Agent Platform / Model Garden)](https://cloud.google.com/model-garden/pricing)
+
+### DeepMind
+
+Configure the API key using LLM's standard key mechanism:
+
+```bash
+llm keys set gemini
+```
+
+- [Video understanding](https://aistudio.google.com/docs/video-understanding)
+- [Pricing (Gemini Developer API)](https://aistudio.google.com/docs/pricing)
 
 ## Development
 

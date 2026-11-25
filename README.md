@@ -62,7 +62,7 @@ llm -m gemini-3.8-flash-yt -a 'https://www.youtube.com/watch?v=9hE5-98ZeCg' 'Wha
 llm -m gemini-3.5-flash-lite-yt -a 'https://www.youtube.com/watch?v=9hE5-98ZeCg' 'Transcribe the audio from this video, giving timestamps for salient events in the video. Also provide visual descriptions.'
 ```
 
-Public YouTube URLs (`youtube.com/watch?v=`, `youtu.be/`, and `youtube.com/shorts/`) are supported; private and unlisted videos are not.
+Supported YouTube URL formats are `youtube.com/watch?v=`, `youtu.be/`, and `youtube.com/shorts/`. The Gemini Developer API supports public videos only (not private or unlisted); Google Cloud also allows videos owned by the signed-in Google Cloud account.
 
 Supported models (if you are unsure which to start with, `gemini-4-hydrogen-yt` and `gemini-3.8-flash-yt` are good defaults—see the pricing links above for token rates):
 
@@ -73,7 +73,7 @@ Supported models (if you are unsure which to start with, `gemini-4-hydrogen-yt` 
 | `gemini-4-argon-yt` | [`gemini-4-argon`](https://aistudio.google.com/docs/models/gemini-4-argon) | [`gemini-4-argon`](https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/gemini/4-argon) |
 | `gemini-4-hydrogen-yt` | [`gemini-4-hydrogen`](https://aistudio.google.com/docs/models/gemini-4-hydrogen) | [`gemini-4-hydrogen`](https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/gemini/4-hydrogen) |
 | `gemini-3.8-flash-yt` | [`gemini-3.8-flash`](https://aistudio.google.com/docs/models/gemini-3.8-flash) | [`gemini-3.8-flash`](https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/gemini/3-8-flash) |
-| `gemini-3.7-flash-yt` | [`gemini-3.7-flash`](https://aistudio.google.com/docs/models/gemini-3.7-flash) | [`gemini-3.7-flash`](https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/gemini/3-7-flash) |
+| `gemini-3.7-flash-yt` | [`gemini-3.7-flash`](https://aistudio.google.com/docs/models/gemini-3.7-flash) (deprecated; routes to `gemini-3.8-flash`) | [`gemini-3.7-flash`](https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/gemini/3-7-flash) |
 | `gemini-3.6-flash-yt` | [`gemini-3.6-flash`](https://aistudio.google.com/docs/models/gemini-3.6-flash) | [`gemini-3.6-flash`](https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/gemini/3-6-flash) |
 | `gemini-3.5-flash-lite-yt` | [`gemini-3.5-flash-lite`](https://aistudio.google.com/docs/models/gemini-3.5-flash-lite) | [`gemini-3.5-flash-lite`](https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/gemini/3-5-flash-lite) |
 

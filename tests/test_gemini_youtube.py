@@ -7,6 +7,8 @@ from unittest.mock import patch
 
 import llm
 import pytest
+import google.genai.interactions as gi
+from google.genai import types
 from llm.plugins import load_plugins, pm
 
 from llm_gemini_youtube import GeminiYouTube, is_google_cloud_enabled, is_youtube_uri
@@ -253,3 +255,353 @@ class TestExecute:
 
         with pytest.raises(llm.ModelError):
             list(model.execute(prompt, False, None, None, "test-key"))
+
+
+class TestUsage:
+    @pytest.fixture(autouse=True)
+    def clear_google_cloud_environment(self, monkeypatch):
+        monkeypatch.delenv("GOOGLE_GENAI_USE_ENTERPRISE", raising=False)
+        monkeypatch.delenv("GOOGLE_GENAI_USE_VERTEXAI", raising=False)
+
+    @pytest.fixture
+    def model(self):
+        return GeminiYouTube("gemini-3.7-flash-yt")
+
+    @pytest.fixture
+    def make_response(self, model):
+        def _make_response(stream: bool = False):
+            prompt = llm.Prompt(
+                "What happens in this video?",
+                model=model,
+                attachments=[llm.Attachment(url="https://youtu.be/7Z5Vy9JBANs")],
+            )
+            return llm.Response(prompt, model=model, stream=stream)
+
+        return _make_response
+
+    @patch("llm_gemini_youtube.Client")
+    def test_non_streaming_interaction_records_usage_with_thoughts_and_modality(
+        self, client_class, model, make_response
+    ):
+        response = make_response(stream=False)
+        client_class.return_value.interactions.create.return_value = SimpleNamespace(
+            output_text="Done.",
+            usage=gi.Usage(
+                total_input_tokens=11,
+                total_output_tokens=160,
+                total_thought_tokens=382,
+                total_cached_tokens=0,
+                total_tool_use_tokens=0,
+                total_tokens=553,
+                input_tokens_by_modality=[
+                    gi.ModalityTokens(modality="text", tokens=11)
+                ],
+            ),
+        )
+
+        chunks = list(
+            model.execute(response.prompt, False, response, None, "test-key")
+        )
+
+        assert chunks == ["Done."]
+        assert response.input_tokens == 11
+        assert response.output_tokens == 542
+        assert response.token_details == {
+            "total_output_tokens": 160,
+            "total_thought_tokens": 382,
+            "input_tokens_by_modality": [{"modality": "text", "tokens": 11}],
+        }
+        assert "11 input, 542 output" in response.token_usage()
+
+    @patch("llm_gemini_youtube.Client")
+    def test_non_streaming_interaction_simple_usage_sets_details_none(
+        self, client_class, model, make_response
+    ):
+        response = make_response(stream=False)
+        client_class.return_value.interactions.create.return_value = SimpleNamespace(
+            output_text="Done.",
+            usage=gi.Usage(
+                total_input_tokens=50,
+                total_output_tokens=10,
+                total_tokens=60,
+            ),
+        )
+
+        list(model.execute(response.prompt, False, response, None, "test-key"))
+
+        assert response.input_tokens == 50
+        assert response.output_tokens == 10
+        assert response.token_details is None
+        assert response.token_usage() == "50 input, 10 output"
+
+    @patch("llm_gemini_youtube.Client")
+    def test_non_streaming_interaction_combines_tool_use_and_keeps_cached(
+        self, client_class, model, make_response
+    ):
+        response = make_response(stream=False)
+        client_class.return_value.interactions.create.return_value = SimpleNamespace(
+            output_text="Done.",
+            usage=gi.Usage(
+                total_input_tokens=100,
+                total_tool_use_tokens=30,
+                total_cached_tokens=40,
+                total_output_tokens=20,
+                total_tokens=150,
+            ),
+        )
+
+        list(model.execute(response.prompt, False, response, None, "test-key"))
+
+        # Cached tokens are already part of total_input_tokens, so only tool use is added.
+        assert response.input_tokens == 130
+        assert response.output_tokens == 20
+        assert response.token_details == {
+            "total_input_tokens": 100,
+            "total_tool_use_tokens": 30,
+            "total_cached_tokens": 40,
+        }
+
+    @patch("llm_gemini_youtube.Client")
+    def test_streaming_interaction_prefers_completed_event_usage(
+        self, client_class, model, make_response
+    ):
+        response = make_response(stream=True)
+        events = [
+            SimpleNamespace(
+                event_type="step.delta",
+                delta=SimpleNamespace(type="text", text="Hello"),
+            ),
+            SimpleNamespace(
+                event_type="step.stop",
+                usage=gi.Usage(total_input_tokens=10, total_output_tokens=2),
+            ),
+            SimpleNamespace(
+                event_type="interaction.completed",
+                interaction=SimpleNamespace(
+                    usage=gi.Usage(
+                        total_input_tokens=25,
+                        total_output_tokens=8,
+                        total_thought_tokens=4,
+                        total_tokens=37,
+                    )
+                ),
+            ),
+        ]
+        client_class.return_value.interactions.create.return_value = iter(events)
+
+        chunks = list(
+            model.execute(response.prompt, True, response, None, "test-key")
+        )
+
+        assert chunks == ["Hello"]
+        assert response.input_tokens == 25
+        assert response.output_tokens == 12
+        assert response.token_details == {
+            "total_output_tokens": 8,
+            "total_thought_tokens": 4,
+        }
+
+    @patch("llm_gemini_youtube.Client")
+    def test_streaming_interaction_falls_back_to_last_step_stop_usage(
+        self, client_class, model, make_response
+    ):
+        response = make_response(stream=True)
+        events = [
+            SimpleNamespace(
+                event_type="step.delta",
+                delta=SimpleNamespace(type="text", text="Hello"),
+            ),
+            SimpleNamespace(
+                event_type="step.stop",
+                usage=gi.Usage(total_input_tokens=10, total_output_tokens=2),
+            ),
+            SimpleNamespace(
+                event_type="step.stop",
+                usage=gi.Usage(total_input_tokens=30, total_output_tokens=7),
+            ),
+            SimpleNamespace(
+                event_type="interaction.completed",
+                interaction=SimpleNamespace(usage=None),
+            ),
+        ]
+        client_class.return_value.interactions.create.return_value = iter(events)
+
+        chunks = list(
+            model.execute(response.prompt, True, response, None, "test-key")
+        )
+
+        assert chunks == ["Hello"]
+        assert response.input_tokens == 30
+        assert response.output_tokens == 7
+        assert response.token_details is None
+
+    @patch("llm_gemini_youtube.Client")
+    def test_enterprise_non_streaming_records_usage_metadata(
+        self, client_class, model, make_response, monkeypatch
+    ):
+        monkeypatch.setenv("GOOGLE_GENAI_USE_ENTERPRISE", "1")
+        response = make_response(stream=False)
+        usage_metadata = types.GenerateContentResponseUsageMetadata(
+            prompt_token_count=8974,
+            candidates_token_count=972,
+            thoughts_token_count=1658,
+            total_token_count=11604,
+            prompt_tokens_details=[
+                types.ModalityTokenCount(
+                    modality=types.MediaModality.VIDEO, token_count=6468
+                ),
+                types.ModalityTokenCount(
+                    modality=types.MediaModality.TEXT, token_count=56
+                ),
+                types.ModalityTokenCount(
+                    modality=types.MediaModality.AUDIO, token_count=2450
+                ),
+            ],
+            candidates_tokens_details=[
+                types.ModalityTokenCount(
+                    modality=types.MediaModality.TEXT, token_count=972
+                )
+            ],
+            traffic_type=types.TrafficType.ON_DEMAND,
+        )
+        client_class.return_value.models.generate_content.return_value = (
+            SimpleNamespace(text="Done", usage_metadata=usage_metadata)
+        )
+
+        chunks = list(model.execute(response.prompt, False, response, None, None))
+
+        assert chunks == ["Done"]
+        assert response.input_tokens == 8974
+        assert response.output_tokens == 2630
+        assert response.token_details == {
+            "candidates_token_count": 972,
+            "thoughts_token_count": 1658,
+            "prompt_tokens_details": [
+                {"modality": "VIDEO", "token_count": 6468},
+                {"modality": "TEXT", "token_count": 56},
+                {"modality": "AUDIO", "token_count": 2450},
+            ],
+            "candidates_tokens_details": [
+                {"modality": "TEXT", "token_count": 972},
+            ],
+            "traffic_type": "ON_DEMAND",
+        }
+        assert "8,974 input, 2,630 output" in response.token_usage()
+
+    @patch("llm_gemini_youtube.Client")
+    def test_enterprise_non_streaming_combines_tool_use_and_keeps_cached(
+        self, client_class, model, make_response, monkeypatch
+    ):
+        monkeypatch.setenv("GOOGLE_GENAI_USE_ENTERPRISE", "1")
+        response = make_response(stream=False)
+        usage_metadata = types.GenerateContentResponseUsageMetadata(
+            prompt_token_count=200,
+            tool_use_prompt_token_count=45,
+            cached_content_token_count=80,
+            candidates_token_count=30,
+            total_token_count=275,
+        )
+        client_class.return_value.models.generate_content.return_value = (
+            SimpleNamespace(text="Done", usage_metadata=usage_metadata)
+        )
+
+        list(model.execute(response.prompt, False, response, None, None))
+
+        assert response.input_tokens == 245
+        assert response.output_tokens == 30
+        assert response.token_details == {
+            "prompt_token_count": 200,
+            "tool_use_prompt_token_count": 45,
+            "cached_content_token_count": 80,
+        }
+
+    @patch("llm_gemini_youtube.Client")
+    def test_enterprise_streaming_records_final_chunk_usage_metadata(
+        self, client_class, model, make_response, monkeypatch
+    ):
+        monkeypatch.setenv("GOOGLE_GENAI_USE_ENTERPRISE", "true")
+        response = make_response(stream=True)
+        chunks_stream = [
+            SimpleNamespace(
+                text="Hello",
+                usage_metadata=types.GenerateContentResponseUsageMetadata(
+                    prompt_token_count=100,
+                    candidates_token_count=2,
+                    total_token_count=102,
+                ),
+            ),
+            SimpleNamespace(text=" world", usage_metadata=None),
+            SimpleNamespace(
+                text=None,
+                usage_metadata=types.GenerateContentResponseUsageMetadata(
+                    prompt_token_count=100,
+                    candidates_token_count=12,
+                    thoughts_token_count=5,
+                    total_token_count=117,
+                ),
+            ),
+        ]
+        client_class.return_value.models.generate_content_stream.return_value = iter(
+            chunks_stream
+        )
+
+        chunks = list(model.execute(response.prompt, True, response, None, None))
+
+        assert chunks == ["Hello", " world"]
+        assert response.input_tokens == 100
+        assert response.output_tokens == 17
+        assert response.token_details == {
+            "candidates_token_count": 12,
+            "thoughts_token_count": 5,
+        }
+
+    @pytest.mark.parametrize(
+        "empty_usage",
+        [
+            None,
+            gi.Usage(),
+            gi.Usage(total_cached_tokens=0, total_tool_use_tokens=0),
+        ],
+    )
+    @patch("llm_gemini_youtube.Client")
+    def test_empty_interaction_usage_does_not_call_set_usage(
+        self, client_class, model, make_response, empty_usage
+    ):
+        response = make_response(stream=False)
+        client_class.return_value.interactions.create.return_value = SimpleNamespace(
+            output_text="Done.",
+            usage=empty_usage,
+        )
+
+        with patch.object(
+            response, "set_usage", wraps=response.set_usage
+        ) as set_usage_spy:
+            list(model.execute(response.prompt, False, response, None, "test-key"))
+
+        set_usage_spy.assert_not_called()
+        assert response.input_tokens is None
+        assert response.output_tokens is None
+        assert response.token_details is None
+
+    @patch("llm_gemini_youtube.Client")
+    def test_empty_generate_content_usage_does_not_call_set_usage(
+        self, client_class, model, make_response, monkeypatch
+    ):
+        monkeypatch.setenv("GOOGLE_GENAI_USE_ENTERPRISE", "1")
+        response = make_response(stream=False)
+        client_class.return_value.models.generate_content.return_value = (
+            SimpleNamespace(
+                text="Done",
+                usage_metadata=types.GenerateContentResponseUsageMetadata(),
+            )
+        )
+
+        with patch.object(
+            response, "set_usage", wraps=response.set_usage
+        ) as set_usage_spy:
+            list(model.execute(response.prompt, False, response, None, None))
+
+        set_usage_spy.assert_not_called()
+        assert response.input_tokens is None
+        assert response.output_tokens is None
+        assert response.token_details is None

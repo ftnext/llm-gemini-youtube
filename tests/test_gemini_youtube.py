@@ -6,9 +6,12 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 import llm
+import pydantic
 import pytest
 import google.genai.interactions as gi
+from click.testing import CliRunner
 from google.genai import types
+from llm.cli import cli
 from llm.plugins import load_plugins, pm
 
 from llm_gemini_youtube import GeminiYouTube, is_google_cloud_enabled, is_youtube_uri
@@ -279,6 +282,12 @@ class TestUsage:
 
         return _make_response
 
+    @staticmethod
+    def _decode_sse_events(raw_events):
+        """Decode raw SSE payloads into real google-genai InteractionSSEEvent models."""
+        adapter = pydantic.TypeAdapter(gi.InteractionSSEEvent)
+        return [adapter.validate_python(event) for event in raw_events]
+
     @patch("llm_gemini_youtube.Client")
     def test_non_streaming_interaction_records_usage_with_thoughts_and_modality(
         self, client_class, model, make_response
@@ -366,27 +375,33 @@ class TestUsage:
         self, client_class, model, make_response
     ):
         response = make_response(stream=True)
-        events = [
-            SimpleNamespace(
-                event_type="step.delta",
-                delta=SimpleNamespace(type="text", text="Hello"),
-            ),
-            SimpleNamespace(
-                event_type="step.stop",
-                usage=gi.Usage(total_input_tokens=10, total_output_tokens=2),
-            ),
-            SimpleNamespace(
-                event_type="interaction.completed",
-                interaction=SimpleNamespace(
-                    usage=gi.Usage(
-                        total_input_tokens=25,
-                        total_output_tokens=8,
-                        total_thought_tokens=4,
-                        total_tokens=37,
-                    )
-                ),
-            ),
-        ]
+        events = self._decode_sse_events(
+            [
+                {
+                    "event_type": "step.delta",
+                    "index": 0,
+                    "delta": {"type": "text", "text": "Hello"},
+                },
+                {
+                    "event_type": "step.stop",
+                    "index": 0,
+                    "usage": {"total_input_tokens": 10, "total_output_tokens": 2},
+                },
+                {
+                    "event_type": "interaction.completed",
+                    "interaction": {
+                        "id": "int-123",
+                        "status": "completed",
+                        "usage": {
+                            "total_input_tokens": 25,
+                            "total_output_tokens": 8,
+                            "total_thought_tokens": 4,
+                            "total_tokens": 37,
+                        },
+                    },
+                },
+            ]
+        )
         client_class.return_value.interactions.create.return_value = iter(events)
 
         chunks = list(
@@ -406,24 +421,29 @@ class TestUsage:
         self, client_class, model, make_response
     ):
         response = make_response(stream=True)
-        events = [
-            SimpleNamespace(
-                event_type="step.delta",
-                delta=SimpleNamespace(type="text", text="Hello"),
-            ),
-            SimpleNamespace(
-                event_type="step.stop",
-                usage=gi.Usage(total_input_tokens=10, total_output_tokens=2),
-            ),
-            SimpleNamespace(
-                event_type="step.stop",
-                usage=gi.Usage(total_input_tokens=30, total_output_tokens=7),
-            ),
-            SimpleNamespace(
-                event_type="interaction.completed",
-                interaction=SimpleNamespace(usage=None),
-            ),
-        ]
+        events = self._decode_sse_events(
+            [
+                {
+                    "event_type": "step.delta",
+                    "index": 0,
+                    "delta": {"type": "text", "text": "Hello"},
+                },
+                {
+                    "event_type": "step.stop",
+                    "index": 0,
+                    "usage": {"total_input_tokens": 10, "total_output_tokens": 2},
+                },
+                {
+                    "event_type": "step.stop",
+                    "index": 1,
+                    "usage": {"total_input_tokens": 30, "total_output_tokens": 7},
+                },
+                {
+                    "event_type": "interaction.completed",
+                    "interaction": {"id": "int-123", "status": "completed"},
+                },
+            ]
+        )
         client_class.return_value.interactions.create.return_value = iter(events)
 
         chunks = list(
@@ -522,23 +542,34 @@ class TestUsage:
         monkeypatch.setenv("GOOGLE_GENAI_USE_ENTERPRISE", "true")
         response = make_response(stream=True)
         chunks_stream = [
-            SimpleNamespace(
-                text="Hello",
-                usage_metadata=types.GenerateContentResponseUsageMetadata(
-                    prompt_token_count=100,
-                    candidates_token_count=2,
-                    total_token_count=102,
-                ),
+            types.GenerateContentResponse.model_validate(
+                {
+                    "candidates": [
+                        {"content": {"parts": [{"text": "Hello"}], "role": "model"}}
+                    ],
+                    "usageMetadata": {
+                        "promptTokenCount": 100,
+                        "candidatesTokenCount": 2,
+                        "totalTokenCount": 102,
+                    },
+                }
             ),
-            SimpleNamespace(text=" world", usage_metadata=None),
-            SimpleNamespace(
-                text=None,
-                usage_metadata=types.GenerateContentResponseUsageMetadata(
-                    prompt_token_count=100,
-                    candidates_token_count=12,
-                    thoughts_token_count=5,
-                    total_token_count=117,
-                ),
+            types.GenerateContentResponse.model_validate(
+                {
+                    "candidates": [
+                        {"content": {"parts": [{"text": " world"}], "role": "model"}}
+                    ]
+                }
+            ),
+            types.GenerateContentResponse.model_validate(
+                {
+                    "usageMetadata": {
+                        "promptTokenCount": 100,
+                        "candidatesTokenCount": 12,
+                        "thoughtsTokenCount": 5,
+                        "totalTokenCount": 117,
+                    }
+                }
             ),
         ]
         client_class.return_value.models.generate_content_stream.return_value = iter(
@@ -605,3 +636,68 @@ class TestUsage:
         assert response.input_tokens is None
         assert response.output_tokens is None
         assert response.token_details is None
+
+    @patch("llm_gemini_youtube.Client")
+    def test_cli_streaming_records_usage_for_usage_flag_and_logs(
+        self, client_class, tmp_path, monkeypatch
+    ):
+        monkeypatch.setenv("LLM_USER_PATH", str(tmp_path))
+        db_path = tmp_path / "logs.db"
+        events = self._decode_sse_events(
+            [
+                {
+                    "event_type": "step.delta",
+                    "index": 0,
+                    "delta": {"type": "text", "text": "Hello"},
+                },
+                {
+                    "event_type": "interaction.completed",
+                    "interaction": {
+                        "id": "int-123",
+                        "status": "completed",
+                        "usage": {
+                            "total_input_tokens": 25,
+                            "total_output_tokens": 8,
+                            "total_thought_tokens": 4,
+                            "total_tokens": 37,
+                            "input_tokens_by_modality": [
+                                {"modality": "video", "tokens": 20},
+                                {"modality": "text", "tokens": 5},
+                            ],
+                        },
+                    },
+                },
+            ]
+        )
+        client_class.return_value.interactions.create.return_value = iter(events)
+
+        runner = CliRunner()
+        prompt_result = runner.invoke(
+            cli,
+            [
+                "-d",
+                str(db_path),
+                "-m",
+                "gemini-3.7-flash-yt",
+                "--at",
+                "https://youtu.be/7Z5Vy9JBANs",
+                "text/html; charset=utf-8",
+                "--key",
+                "test-key",
+                "--log",
+                "-u",
+                "Summarize",
+            ],
+        )
+
+        assert prompt_result.exit_code == 0, prompt_result.output
+        assert "Hello" in prompt_result.output
+        assert "25 input, 12 output" in prompt_result.output
+
+        logs_result = runner.invoke(cli, ["logs", "-d", str(db_path), "-u"])
+
+        assert logs_result.exit_code == 0, logs_result.output
+        assert "## Token usage" in logs_result.output
+        assert "25 input, 12 output" in logs_result.output
+        assert '"total_thought_tokens": 4' in logs_result.output
+        assert '"modality": "video"' in logs_result.output

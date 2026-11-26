@@ -7,7 +7,9 @@ from unittest.mock import patch
 
 import llm
 import pytest
+from google.genai import types
 from llm.plugins import load_plugins, pm
+from pydantic import ValidationError
 
 from llm_gemini_youtube import GeminiYouTube, is_google_cloud_enabled, is_youtube_uri
 
@@ -62,6 +64,40 @@ class TestSupportedModels:
         )
 
         assert expected_model in result.stdout
+
+
+class TestResolutionOptions:
+    def test_default_is_none(self):
+        options = GeminiYouTube.Options()
+        assert options.resolution is None
+
+    @pytest.mark.parametrize("resolution", ["low", "medium", "high"])
+    def test_accepts_supported_resolutions(self, resolution):
+        options = GeminiYouTube.Options(resolution=resolution)
+        assert options.resolution == resolution
+
+    @pytest.mark.parametrize("resolution", ["ultra_high", "LOW", "invalid"])
+    def test_rejects_unsupported_resolutions(self, resolution):
+        with pytest.raises(ValidationError):
+            GeminiYouTube.Options(resolution=resolution)
+
+    def test_cli_exposes_resolution_option(self):
+        result = subprocess.run(
+            [
+                sys.executable,
+                "-m",
+                "llm",
+                "models",
+                "--options",
+                "-q",
+                "gemini-3.8-flash-yt",
+            ],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+
+        assert "resolution" in result.stdout
 
 
 class TestGoogleCloudConfiguration:
@@ -253,3 +289,113 @@ class TestExecute:
 
         with pytest.raises(llm.ModelError):
             list(model.execute(prompt, False, None, None, "test-key"))
+
+    @pytest.mark.parametrize(
+        ("resolution", "expected_level"),
+        [
+            ("low", types.PartMediaResolutionLevel.MEDIA_RESOLUTION_LOW),
+            ("medium", types.PartMediaResolutionLevel.MEDIA_RESOLUTION_MEDIUM),
+            ("high", types.PartMediaResolutionLevel.MEDIA_RESOLUTION_HIGH),
+        ],
+    )
+    @patch("llm_gemini_youtube.Client")
+    def test_enterprise_sets_media_resolution(
+        self, client_class, resolution, expected_level, monkeypatch
+    ):
+        monkeypatch.setenv("GOOGLE_GENAI_USE_ENTERPRISE", "1")
+        client = client_class.return_value
+        client.models.generate_content.return_value = SimpleNamespace(text="Done")
+        model = GeminiYouTube("gemini-3.7-flash-yt")
+        prompt = SimpleNamespace(
+            prompt="What happens in this video?",
+            attachments=[llm.Attachment(url="https://youtu.be/7Z5Vy9JBANs")],
+            options=GeminiYouTube.Options(resolution=resolution),
+        )
+
+        chunks = list(model.execute(prompt, False, None, None, None))
+
+        assert chunks == ["Done"]
+        video_part, _ = client.models.generate_content.call_args.kwargs["contents"]
+        assert video_part.media_processing == "AGENTIC"
+        assert video_part.media_resolution == types.PartMediaResolution(
+            level=expected_level
+        )
+
+    @patch("llm_gemini_youtube.Client")
+    def test_streaming_enterprise_sets_media_resolution(
+        self, client_class, monkeypatch
+    ):
+        monkeypatch.setenv("GOOGLE_GENAI_USE_ENTERPRISE", "true")
+        client = client_class.return_value
+        client.models.generate_content_stream.return_value = iter(
+            [
+                SimpleNamespace(text="Hello"),
+                SimpleNamespace(text=" world"),
+            ]
+        )
+        model = GeminiYouTube("gemini-3.7-flash-yt")
+        prompt = SimpleNamespace(
+            prompt="What happens in this video?",
+            attachments=[llm.Attachment(url="https://youtu.be/7Z5Vy9JBANs")],
+            options=GeminiYouTube.Options(resolution="low"),
+        )
+
+        chunks = list(model.execute(prompt, True, None, None, None))
+
+        assert chunks == ["Hello", " world"]
+        video_part, _ = client.models.generate_content_stream.call_args.kwargs[
+            "contents"
+        ]
+        assert video_part.media_resolution == types.PartMediaResolution(
+            level=types.PartMediaResolutionLevel.MEDIA_RESOLUTION_LOW
+        )
+
+    @patch("llm_gemini_youtube.Client")
+    def test_enterprise_without_resolution_leaves_media_resolution_none(
+        self, client_class, monkeypatch
+    ):
+        monkeypatch.setenv("GOOGLE_GENAI_USE_ENTERPRISE", "1")
+        client = client_class.return_value
+        client.models.generate_content.return_value = SimpleNamespace(text="Done")
+        model = GeminiYouTube("gemini-3.7-flash-yt")
+        prompt = SimpleNamespace(
+            prompt="What happens in this video?",
+            attachments=[llm.Attachment(url="https://youtu.be/7Z5Vy9JBANs")],
+            options=GeminiYouTube.Options(),
+        )
+
+        list(model.execute(prompt, False, None, None, None))
+
+        video_part, _ = client.models.generate_content.call_args.kwargs["contents"]
+        assert video_part.media_resolution is None
+
+    @patch("llm_gemini_youtube.Client")
+    def test_developer_api_rejects_resolution_option(self, client_class):
+        model = GeminiYouTube("gemini-3.7-flash-yt")
+        prompt = SimpleNamespace(
+            prompt="What happens in this video?",
+            attachments=[llm.Attachment(url="https://youtu.be/7Z5Vy9JBANs")],
+            options=GeminiYouTube.Options(resolution="low"),
+        )
+
+        with pytest.raises(llm.ModelError, match="Google Cloud"):
+            list(model.execute(prompt, False, None, None, "test-key"))
+
+        client_class.assert_not_called()
+
+    @patch("llm_gemini_youtube.Client")
+    def test_developer_api_without_resolution_option_succeeds(self, client_class):
+        client = client_class.return_value
+        client.interactions.create.return_value = SimpleNamespace(output_text="Done")
+        model = GeminiYouTube("gemini-3.7-flash-yt")
+        prompt = SimpleNamespace(
+            prompt="What happens in this video?",
+            attachments=[llm.Attachment(url="https://youtu.be/7Z5Vy9JBANs")],
+            options=GeminiYouTube.Options(),
+        )
+
+        chunks = list(model.execute(prompt, False, None, None, "test-key"))
+
+        assert chunks == ["Done"]
+        video_input = client.interactions.create.call_args.kwargs["input"][0]
+        assert "resolution" not in video_input

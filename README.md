@@ -64,6 +64,20 @@ llm -m gemini-3.5-flash-lite-yt -a 'https://www.youtube.com/watch?v=9hE5-98ZeCg'
 
 Supported YouTube URL formats are `youtube.com/watch?v=`, `youtu.be/`, and `youtube.com/shorts/`. The Gemini Developer API supports public videos only (not private or unlisted); Google Cloud also allows videos owned by the signed-in Google Cloud account.
 
+With Google Cloud enabled, you can also control the video media resolution via `-o resolution` (`low`, `medium`, or `high`) to balance detail and token cost:
+
+```bash
+llm -m gemini-4-hydrogen-yt -o resolution low -a 'https://www.youtube.com/watch?v=9hE5-98ZeCg' 'Can you summarize this video?'
+```
+
+You can set a default resolution for a model with LLM's `models options set` command:
+
+```bash
+llm models options set gemini-4-hydrogen-yt resolution low
+```
+
+Currently, `-o resolution` is only supported when Google Cloud (Gemini Enterprise Agent Platform) is enabled.
+
 Supported models (if you are unsure which to start with, `gemini-4-hydrogen-yt` and `gemini-3.8-flash-yt` are good defaults—see the pricing links above for token rates):
 
 | Model | Gemini Developer API (Google AI Studio) | Google Cloud (Gemini Enterprise Agent Platform) |

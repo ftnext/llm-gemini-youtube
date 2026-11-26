@@ -1,9 +1,11 @@
 import logging
 import os
+from typing import Literal, Optional
 from unittest.mock import patch
 
 import llm
 from google.genai import Client, types
+from pydantic import Field
 
 
 # Suppress an upstream AFC warning emitted even when no tools are configured.
@@ -21,6 +23,12 @@ SUPPORTED_MODELS = (
     "gemini-3.6-flash",
     "gemini-3.5-flash-lite",
 )
+
+RESOLUTION_LEVELS = {
+    "low": types.PartMediaResolutionLevel.MEDIA_RESOLUTION_LOW,
+    "medium": types.PartMediaResolutionLevel.MEDIA_RESOLUTION_MEDIUM,
+    "high": types.PartMediaResolutionLevel.MEDIA_RESOLUTION_HIGH,
+}
 
 
 @llm.hookimpl
@@ -46,11 +54,27 @@ def is_google_cloud_enabled() -> bool:
     return vertexai is not None and vertexai.lower() in {"true", "1"}
 
 
+def _get_resolution(prompt) -> Optional[str]:
+    """Extract the optional resolution setting from prompt options."""
+    options = getattr(prompt, "options", None)
+    if options is None:
+        return None
+    if isinstance(options, dict):
+        return options.get("resolution")
+    return getattr(options, "resolution", None)
+
+
 class GeminiYouTube(llm.KeyModel):
     needs_key = "gemini"
     key_env_var = "LLM_GEMINI_KEY"
     can_stream = True
     attachment_types = set(["text/html; charset=utf-8"])  # for YouTube URLs
+
+    class Options(llm.Options):
+        resolution: Optional[Literal["low", "medium", "high"]] = Field(
+            default=None,
+            description="Video media resolution for Google Cloud requests (low, medium, high).",
+        )
 
     def __init__(self, model_id: str):
         self.model_id = model_id
@@ -72,6 +96,17 @@ class GeminiYouTube(llm.KeyModel):
         if not youtube_uri:
             raise llm.ModelError("YouTube URL attachment is required.")
 
+        resolution = _get_resolution(prompt)
+        google_cloud_enabled = is_google_cloud_enabled()
+        if resolution is not None and resolution not in RESOLUTION_LEVELS:
+            raise llm.ModelError(
+                f"Unsupported resolution: {resolution}. Choose from low, medium, or high."
+            )
+        if resolution is not None and not google_cloud_enabled:
+            raise llm.ModelError(
+                "The 'resolution' option is currently only supported when Google Cloud is enabled."
+            )
+
         # Let google-genai select the Gemini Developer API or Gemini Enterprise
         # Agent Platform from its standard environment variables. The LLM key
         # is exposed only while Client reads its configuration.
@@ -82,14 +117,19 @@ class GeminiYouTube(llm.KeyModel):
             client = Client()
 
         model_id = self.model_id.removesuffix("-yt")
-        if is_google_cloud_enabled():
-            video_part = types.Part(
-                file_data=types.FileData(
+        if google_cloud_enabled:
+            part_kwargs = {
+                "file_data": types.FileData(
                     file_uri=youtube_uri,
                     mime_type="video/mp4",
                 ),
-                media_processing="AGENTIC",
-            )
+                "media_processing": "AGENTIC",
+            }
+            if resolution is not None:
+                part_kwargs["media_resolution"] = types.PartMediaResolution(
+                    level=RESOLUTION_LEVELS[resolution]
+                )
+            video_part = types.Part(**part_kwargs)
             contents = [video_part, prompt.prompt]
 
             if not stream:

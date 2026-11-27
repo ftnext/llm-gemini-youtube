@@ -70,13 +70,13 @@ With Google Cloud enabled, you can also control the video media resolution via `
 llm -m gemini-4-hydrogen-yt -o resolution low -a 'https://www.youtube.com/watch?v=9hE5-98ZeCg' 'Can you summarize this video?'
 ```
 
-You can set a default resolution for a model with LLM's `models options set` command:
+With a newer version of LLM that supports `models options` (upgrade LLM if the command is unavailable), you can set a default resolution for a model:
 
 ```bash
 llm models options set gemini-4-hydrogen-yt resolution low
 ```
 
-Currently, `-o resolution` is only supported when Google Cloud (Gemini Enterprise Agent Platform) is enabled.
+Currently, `-o resolution` is only supported when Google Cloud (Gemini Enterprise Agent Platform) is enabled. Because saved options apply per model, clear the saved default with `llm models options clear <model> resolution` if you switch back to the Gemini Developer API.
 
 Token usage is recorded on responses and can be displayed with `llm -u` / `--usage` or viewed later with `llm logs -u`.
 
